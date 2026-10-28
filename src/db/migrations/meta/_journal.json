@@ -8,6 +8,13 @@
       "when": 1793199308270,
       "tag": "0000_rare_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793208978351,
+      "tag": "0001_past_chronomancer",
+      "breakpoints": true
     }
   ]
 }

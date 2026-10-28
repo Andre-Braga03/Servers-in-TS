@@ -1,28 +1,43 @@
 import { Request, Response, NextFunction } from "express";
+import type { MigrationConfig } from "drizzle-orm/migrator";
+
+const migrationConfig: MigrationConfig = {
+  migrationsFolder: "src/db/migrations",
+}
 
 process.loadEnvFile();
 
 type APIConfig = {
 fileserverHits: number;
-dbUrl: string;
+port: number;
 };
 
-export const config : APIConfig = {
-  fileserverHits: 0,
-  dbUrl: process.env.DB_URL ?? "",
+type DBConfig = {
+    url: string;
+    migrationConfig: MigrationConfig;
 }
+
+type Config = {
+    api: APIConfig;
+    db: DBConfig;
+}
+export const config : Config = {
+ api: {
+    fileserverHits: 0,
+    port: Number(process.env.PORT),
+ },
+ db: {
+    url: process.env.DB_URL ?? "",
+    migrationConfig,
+ },
+};
 
 
 export function getHits(): number {
-    return config.fileserverHits;
+    return config.api.fileserverHits;
 }
 export function middlewareMetricsInc(req: Request, res: Response, next: NextFunction) {
-    config.fileserverHits++;
+    config.api.fileserverHits++;
     next();
 }
 
-export function handlerResetMetrics(_req: Request, res: Response) {
-    config.fileserverHits = 0;
-    res.set("Content-Type", "text/plain; charset=utf-8");
-    res.send("OK");
-}

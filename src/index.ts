@@ -1,9 +1,11 @@
 import express, { NextFunction, ErrorRequestHandler } from "express";
 import { Request, Response } from "express";
-import { getHits, handlerResetMetrics, middlewareMetricsInc } from "./config.js";
+import { getHits, middlewareMetricsInc } from "./config.js";
 import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError, ApiError } from "./error/APIErrors.js";
+import { config } from "./config.js";
+import { createUser, resetUsers } from "./db/queries/users.js";
+import { createChirp, getAllChirps, getChirpById, resetChirps } from "./db/queries/chirps.js";
 const app = express();
-const PORT = 8080;
 const Middleware = express.json();
 
 const middlewareErrorHandler : ErrorRequestHandler = (err, req, res, next) => {
@@ -23,17 +25,21 @@ app.use(Middleware);
 // GET Requests
 app.get("/api/healthz", handlerReadiness);
 app.get("/admin/metrics",handlerMetrics);
-
+app.get("/api/chirps", handlerGetAllChirps);
+app.get("/api/chirps/:id", handlerGetChirpById);
 // POST Requests
 app.post("/admin/reset", handlerResetMetrics);
-app.post("/api/validate_chirp", handlerValidateChirp);
+app.post("/api/users", handlerCreateUser);
+app.post("/api/chirps", handlerValidateChirp);
+
+
 
 // Middleware
 app.use(middlewareLogResponses);
 app.use(middlewareErrorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Server is running at http://localhost:${PORT}`);
+app.listen(config.api.port, () => {
+  console.log(`Server is running at http://localhost:${config.api.port}`);
 });
 
 
@@ -82,12 +88,54 @@ async function handlerValidateChirp(req: Request, res: Response) {
     .map((word : string) =>
       badwords.includes(word.toLowerCase()) ? "****" : word
     ).join(" ");
-
+    const chirp = await createChirp({
+      body: cleanedBody,
+      userId: parsed.userId,
+    });
     res.header("Content-Type", "application/json");
-    res.status(200).send(JSON.stringify({
-     cleanedBody: cleanedBody,
-    }));
+    res.status(201).json(chirp);
+
     return;
     }
 
 
+
+    async function handlerResetMetrics(_req: Request, res: Response) {
+      if(process.env.PLATFORM !== "dev"){
+        throw new ForbiddenError("Not allowed to reset metrics.");
+      }
+      await resetChirps();
+      await resetUsers();
+      config.api.fileserverHits = 0;
+      res.status(200).json({
+        message: "OK",
+      });
+    }
+    async function handlerCreateUser(req: Request, res: Response) {
+      const parsed = req.body;
+      if(typeof parsed.email !== "string" ){
+        throw new BadRequestError("Invalid email.");
+      }
+      const user = await createUser({
+        email: parsed.email,
+      });
+      res.status(201).json({
+        id: user.id,
+        email: user.email,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      });
+    }
+
+    async function handlerGetAllChirps(_req: Request, res: Response) {
+      const chirps = await getAllChirps();
+      res.status(200).json(chirps);
+    }
+
+    async function handlerGetChirpById(req: Request, res: Response) {
+      const chirp = await getChirpById(req.params.id as string);
+      if(!chirp){
+        throw new NotFoundError("Chirp not found.");
+      }
+      res.status(200).json(chirp);
+    }

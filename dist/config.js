@@ -1,17 +1,21 @@
+const migrationConfig = {
+    migrationsFolder: "src/db/migrations",
+};
 process.loadEnvFile();
 export const config = {
-    fileserverHits: 0,
-    dbUrl: process.env.DB_URL ?? "",
+    api: {
+        fileserverHits: 0,
+        port: Number(process.env.PORT),
+    },
+    db: {
+        url: process.env.DB_URL ?? "",
+        migrationConfig,
+    },
 };
 export function getHits() {
-    return config.fileserverHits;
+    return config.api.fileserverHits;
 }
 export function middlewareMetricsInc(req, res, next) {
-    config.fileserverHits++;
+    config.api.fileserverHits++;
     next();
-}
-export function handlerResetMetrics(_req, res) {
-    config.fileserverHits = 0;
-    res.set("Content-Type", "text/plain; charset=utf-8");
-    res.send("OK");
 }
