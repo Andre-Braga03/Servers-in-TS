@@ -1,17 +1,28 @@
 import express from "express";
 import { getHits, handlerResetMetrics, middlewareMetricsInc } from "./config.js";
+import { BadRequestError, ApiError } from "./error/APIErrors.js";
 const app = express();
 const PORT = 8080;
 const Middleware = express.json();
+const middlewareErrorHandler = (err, req, res, next) => {
+    if (err instanceof ApiError) {
+        res.status(err.statusCode).json({
+            error: err.message
+        });
+        return;
+    }
+};
 app.use("/app", middlewareMetricsInc, express.static("./src/app"));
+app.use(Middleware);
 // GET Requests
 app.get("/api/healthz", handlerReadiness);
 app.get("/admin/metrics", handlerMetrics);
 // POST Requests
 app.post("/admin/reset", handlerResetMetrics);
-app.post("/api/validate_chirp", Middleware, handlerValidateChirp);
+app.post("/api/validate_chirp", handlerValidateChirp);
 // Middleware
 app.use(middlewareLogResponses);
+app.use(middlewareErrorHandler);
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
 });
@@ -37,23 +48,16 @@ function handlerMetrics(_req, res) {
   </body>
 </html>`);
 }
-function handlerValidateChirp(req, res) {
+async function handlerValidateChirp(req, res) {
     const parsed = req.body;
     if (typeof parsed.body !== "string") {
-        res.header("Content-Type", "application/json");
-        const bodyy = JSON.stringify({
-            error: "Something went wrong",
+        res.status(400).json({
+            error: "Something went wrong"
         });
-        res.status(400).send(bodyy);
         return;
     }
     if (parsed.body.length > 140) {
-        res.header("Content-Type", "application/json");
-        const bodyy = JSON.stringify({
-            error: "Chirp is too long",
-        });
-        res.status(400).send(bodyy);
-        return;
+        throw new BadRequestError("Chirp is too long. Max length is 140");
     }
     const badwords = ["kerfuffle", "sharbert", "fornax"];
     const cleanedBody = parsed.body
