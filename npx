@@ -1,0 +1,4 @@
+error TS6059: File '/home/yakuz/projects/httpServer/Servers-in-TS/drizzle.config.ts' is not under 'rootDir' '/home/yakuz/projects/httpServer/Servers-in-TS/src'. 'rootDir' is expected to contain all source files.
+  The file is in the program because:
+    Matched by include pattern 'drizzle.config.ts' in '/home/yakuz/projects/httpServer/Servers-in-TS/tsconfig.json'
+  File is ECMAScript module because '/home/yakuz/projects/httpServer/Servers-in-TS/package.json' has field "type" with value "module"

@@ -1,5 +1,7 @@
-const config = {
+process.loadEnvFile();
+export const config = {
     fileserverHits: 0,
+    dbUrl: process.env.DB_URL ?? "",
 };
 export function getHits() {
     return config.fileserverHits;

@@ -1,12 +1,17 @@
 import { Request, Response, NextFunction } from "express";
 
+process.loadEnvFile();
+
 type APIConfig = {
 fileserverHits: number;
+dbUrl: string;
 };
 
-const config : APIConfig = {
+export const config : APIConfig = {
   fileserverHits: 0,
+  dbUrl: process.env.DB_URL ?? "",
 }
+
 
 export function getHits(): number {
     return config.fileserverHits;
