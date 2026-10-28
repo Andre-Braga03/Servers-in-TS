@@ -1,9 +1,10 @@
 import express from "express";
 import { getHits, middlewareMetricsInc } from "./config.js";
-import { BadRequestError, ForbiddenError, NotFoundError, ApiError } from "./error/APIErrors.js";
+import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError, ApiError } from "./error/APIErrors.js";
 import { config } from "./config.js";
-import { createUser, resetUsers } from "./db/queries/users.js";
+import { createUser, resetUsers, getUserByEmail } from "./db/queries/users.js";
 import { createChirp, getAllChirps, getChirpById, resetChirps } from "./db/queries/chirps.js";
+import { hashPassword, checkPasswordHash } from "./auth/auth.js";
 const app = express();
 const Middleware = express.json();
 const middlewareErrorHandler = (err, req, res, next) => {
@@ -25,6 +26,7 @@ app.get("/api/chirps/:id", handlerGetChirpById);
 app.post("/admin/reset", handlerResetMetrics);
 app.post("/api/users", handlerCreateUser);
 app.post("/api/chirps", handlerValidateChirp);
+app.post("/api/login", handlerLogin);
 // Middleware
 app.use(middlewareLogResponses);
 app.use(middlewareErrorHandler);
@@ -94,6 +96,7 @@ async function handlerCreateUser(req, res) {
     }
     const user = await createUser({
         email: parsed.email,
+        hashed_password: await hashPassword(parsed.password),
     });
     res.status(201).json({
         id: user.id,
@@ -112,4 +115,24 @@ async function handlerGetChirpById(req, res) {
         throw new NotFoundError("Chirp not found.");
     }
     res.status(200).json(chirp);
+}
+async function handlerLogin(req, res) {
+    const parsed = req.body;
+    if (typeof parsed.email !== "string" || typeof parsed.password !== "string") {
+        throw new BadRequestError("Invalid email or password.");
+    }
+    const user = await getUserByEmail(parsed.email);
+    if (!user) {
+        throw new NotFoundError("User not found.");
+    }
+    const isValid = await checkPasswordHash(parsed.password, user.hashed_password);
+    if (!isValid) {
+        throw new UnauthorizedError("Invalid password.");
+    }
+    res.status(200).json({
+        id: user.id,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        email: user.email,
+    });
 }
