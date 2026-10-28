@@ -2,10 +2,15 @@ import express from "express";
 import { getHits, handlerResetMetrics, middlewareMetricsInc } from "./config.js";
 const app = express();
 const PORT = 8080;
+const Middleware = express.json();
 app.use("/app", middlewareMetricsInc, express.static("./src/app"));
+// GET Requests
 app.get("/api/healthz", handlerReadiness);
 app.get("/admin/metrics", handlerMetrics);
-app.get("/admin/reset", handlerResetMetrics);
+// POST Requests
+app.post("/admin/reset", handlerResetMetrics);
+app.post("/api/validate_chirp", Middleware, handlerValidateChirp);
+// Middleware
 app.use(middlewareLogResponses);
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
@@ -31,4 +36,32 @@ function handlerMetrics(_req, res) {
     <p>Chirpy has been visited ${getHits()} times!</p>
   </body>
 </html>`);
+}
+function handlerValidateChirp(req, res) {
+    const parsed = req.body;
+    if (typeof parsed.body !== "string") {
+        res.header("Content-Type", "application/json");
+        const bodyy = JSON.stringify({
+            error: "Something went wrong",
+        });
+        res.status(400).send(bodyy);
+        return;
+    }
+    if (parsed.body.length > 140) {
+        res.header("Content-Type", "application/json");
+        const bodyy = JSON.stringify({
+            error: "Chirp is too long",
+        });
+        res.status(400).send(bodyy);
+        return;
+    }
+    const badwords = ["kerfuffle", "sharbert", "fornax"];
+    const cleanedBody = parsed.body
+        .split(" ")
+        .map((word) => badwords.includes(word.toLowerCase()) ? "****" : word).join(" ");
+    res.header("Content-Type", "application/json");
+    res.status(200).send(JSON.stringify({
+        cleanedBody: cleanedBody,
+    }));
+    return;
 }
