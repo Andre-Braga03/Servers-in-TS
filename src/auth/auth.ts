@@ -1,6 +1,9 @@
+import { randomBytes } from "node:crypto";
+import type { Request } from "express";
 import argon2 from "argon2";
 import jwt, { type JwtPayload } from "jsonwebtoken";
-import { UnauthorizedError } from "../error/APIErrors.js";
+import { UnauthorizedError, BadRequestError } from "../error/APIErrors.js";
+
 
 type payload = Pick<JwtPayload, "iss" | "sub" | "iat" | "exp">;
 
@@ -59,3 +62,23 @@ export function validateJWT(tokenString: string, secret: string): string {
 
   return decoded.sub;
 }
+
+export function extractBearerToken(authrozation: string | undefined): string {
+  if(!authrozation){
+    throw new BadRequestError("Authorization header is required");
+  }
+  const [type, token] = authrozation.split(" ");
+  if(type !== "Bearer"){
+    throw new BadRequestError("Invalid authorization type");
+  }
+  return token;
+}
+
+export function getBearerToken(req: Request): string {
+  return extractBearerToken(req.get("Authorization"));
+}
+
+export function makeRefreshToken(): string {
+  return randomBytes(32).toString("hex");
+}
+

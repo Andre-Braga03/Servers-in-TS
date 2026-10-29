@@ -4,7 +4,8 @@ import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError, ApiE
 import { config } from "./config.js";
 import { createUser, resetUsers, getUserByEmail } from "./db/queries/users.js";
 import { createChirp, getAllChirps, getChirpById, resetChirps } from "./db/queries/chirps.js";
-import { hashPassword, checkPasswordHash } from "./auth/auth.js";
+import { hashPassword, checkPasswordHash, makeJWT, getBearerToken, validateJWT, makeRefreshToken } from "./auth/auth.js";
+import { createRefreshToken, getUserByRefreshToken, resetRefreshTokens, revokeRefreshToken } from "./db/queries/tokens.js";
 const app = express();
 const Middleware = express.json();
 const middlewareErrorHandler = (err, req, res, next) => {
@@ -27,6 +28,8 @@ app.post("/admin/reset", handlerResetMetrics);
 app.post("/api/users", handlerCreateUser);
 app.post("/api/chirps", handlerValidateChirp);
 app.post("/api/login", handlerLogin);
+app.post("/api/refresh", handlerRefresh);
+app.post("/api/revoke", handlerRevoke);
 // Middleware
 app.use(middlewareLogResponses);
 app.use(middlewareErrorHandler);
@@ -70,9 +73,11 @@ async function handlerValidateChirp(req, res) {
     const cleanedBody = parsed.body
         .split(" ")
         .map((word) => badwords.includes(word.toLowerCase()) ? "****" : word).join(" ");
+    const token = getBearerToken(req);
+    const userId = validateJWT(token, config.api.jwtSecret);
     const chirp = await createChirp({
         body: cleanedBody,
-        userId: parsed.userId,
+        userId,
     });
     res.header("Content-Type", "application/json");
     res.status(201).json(chirp);
@@ -83,6 +88,7 @@ async function handlerResetMetrics(_req, res) {
         throw new ForbiddenError("Not allowed to reset metrics.");
     }
     await resetChirps();
+    await resetRefreshTokens();
     await resetUsers();
     config.api.fileserverHits = 0;
     res.status(200).json({
@@ -129,10 +135,34 @@ async function handlerLogin(req, res) {
     if (!isValid) {
         throw new UnauthorizedError("Invalid password.");
     }
+    const token = makeJWT(user.id, 60 * 60, config.api.jwtSecret);
+    const refreshToken = makeRefreshToken();
+    await createRefreshToken({
+        token: refreshToken,
+        user_id: user.id,
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+    });
     res.status(200).json({
         id: user.id,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         email: user.email,
+        token,
+        refreshToken,
     });
+}
+async function handlerRefresh(req, res) {
+    const refreshToken = getBearerToken(req);
+    const user = await getUserByRefreshToken(refreshToken);
+    if (!user) {
+        throw new UnauthorizedError("Invalid refresh token.");
+    }
+    const token = makeJWT(user, 60 * 60, config.api.jwtSecret);
+    res.status(200).json({ token });
+}
+async function handlerRevoke(req, res) {
+    const refreshToken = getBearerToken(req);
+    const now = new Date();
+    await revokeRefreshToken(refreshToken, now);
+    res.status(204).send();
 }

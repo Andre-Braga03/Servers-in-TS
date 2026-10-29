@@ -6,6 +6,7 @@ export const config = {
     api: {
         fileserverHits: 0,
         port: Number(process.env.PORT),
+        jwtSecret: process.env.JWT_SECRET ?? "",
     },
     db: {
         url: process.env.DB_URL ?? "",
