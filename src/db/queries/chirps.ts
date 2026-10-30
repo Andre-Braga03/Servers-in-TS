@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { config } from "../../config.js";
 import { chirps, newChirp } from "../schema.js";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, desc } from "drizzle-orm";
 
 export async function createChirp(chirp: newChirp) {
   const [result] = await drizzle(config.db.url)
@@ -31,6 +31,31 @@ export async function getChirpById(id: string) {
     .select()
     .from(chirps)
     .where(eq(chirps.id, id));
+  return result;
+}
+
+export async function getAllChirpsByUserId(userId: string) {
+  const result = await drizzle(config.db.url)
+    .select()
+    .from(chirps)
+    .where(eq(chirps.userId, userId))
+    .orderBy(asc(chirps.createdAt));
+  return result;
+}
+
+export async function getAllChirpsSortedByCreatedAtAsc() {
+  const result = await drizzle(config.db.url)
+    .select()
+    .from(chirps)
+    .orderBy(asc(chirps.createdAt));
+  return result;
+}
+
+export async function getAllChirpsSortedByCreatedAtDesc() {
+  const result = await drizzle(config.db.url)
+    .select()
+    .from(chirps)
+    .orderBy(desc(chirps.createdAt));
   return result;
 }
 

@@ -4,7 +4,7 @@ import { getHits, middlewareMetricsInc } from "./config.js";
 import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError, ApiError } from "./error/APIErrors.js";
 import { config } from "./config.js";
 import { createUser, resetUsers, getUserByEmail, updateUser, updateUserIsChirpyRed, getUserById } from "./db/queries/users.js";
-import { createChirp, getAllChirps, getChirpById, resetChirps, deleteChirpById } from "./db/queries/chirps.js";
+import { createChirp, getAllChirps, getChirpById, resetChirps, deleteChirpById, getAllChirpsByUserId, getAllChirpsSortedByCreatedAtAsc, getAllChirpsSortedByCreatedAtDesc } from "./db/queries/chirps.js";
 import { hashPassword, checkPasswordHash, makeJWT, getBearerToken, validateJWT, makeRefreshToken, getAPIKey} from "./auth/auth.js";
 import { createRefreshToken, getUserByRefreshToken, resetRefreshTokens, revokeRefreshToken } from "./db/queries/tokens.js";
 const app = express();
@@ -27,7 +27,7 @@ app.use(Middleware);
 // GET Requests
 app.get("/api/healthz", handlerReadiness);
 app.get("/admin/metrics",handlerMetrics);
-app.get("/api/chirps", handlerGetAllChirps);
+app.get("/api/chirps/", handlerGetAllChirps);
 app.get("/api/chirps/:id", handlerGetChirpById);
 // POST Requests
 app.post("/admin/reset", handlerResetMetrics);
@@ -143,14 +143,27 @@ async function handlerValidateChirp(req: Request, res: Response) {
       });
     }
 
-    async function handlerGetAllChirps(_req: Request, res: Response) {
-      const chirps = await getAllChirps();
+    async function handlerGetAllChirps(req: Request, res: Response) {
+      const authorIdQuery = req.query.authorId;
+      const sortQuery = req.query.sort;
+    
+      const chirps =
+        typeof authorIdQuery === "string" && authorIdQuery !== ""
+          ? await getAllChirpsByUserId(authorIdQuery)
+          : await getAllChirps();
+    
+      chirps.sort((a, b) => {
+        const aTime = a.createdAt.getTime();
+        const bTime = b.createdAt.getTime();
+        return sortQuery === "desc" ? bTime - aTime : aTime - bTime;
+      });
+    
       res.status(200).json(chirps);
     }
 
     async function handlerGetChirpById(req: Request, res: Response) {
       const chirp = await getChirpById(req.params.id as string);
-      if(!chirp){
+      if (!chirp) {
         throw new NotFoundError("Chirp not found.");
       }
       res.status(200).json(chirp);
