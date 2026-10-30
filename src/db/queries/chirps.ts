@@ -33,3 +33,11 @@ export async function getChirpById(id: string) {
     .where(eq(chirps.id, id));
   return result;
 }
+
+export async function deleteChirpById(id: string) {
+  const [result] = await drizzle(config.db.url)
+    .delete(chirps)
+    .where(eq(chirps.id, id))
+    .returning();
+  return result;
+}

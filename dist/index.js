@@ -2,9 +2,9 @@ import express from "express";
 import { getHits, middlewareMetricsInc } from "./config.js";
 import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError, ApiError } from "./error/APIErrors.js";
 import { config } from "./config.js";
-import { createUser, resetUsers, getUserByEmail } from "./db/queries/users.js";
-import { createChirp, getAllChirps, getChirpById, resetChirps } from "./db/queries/chirps.js";
-import { hashPassword, checkPasswordHash, makeJWT, getBearerToken, validateJWT, makeRefreshToken } from "./auth/auth.js";
+import { createUser, resetUsers, getUserByEmail, updateUser, updateUserIsChirpyRed, getUserById } from "./db/queries/users.js";
+import { createChirp, getAllChirps, getChirpById, resetChirps, deleteChirpById } from "./db/queries/chirps.js";
+import { hashPassword, checkPasswordHash, makeJWT, getBearerToken, validateJWT, makeRefreshToken, getAPIKey } from "./auth/auth.js";
 import { createRefreshToken, getUserByRefreshToken, resetRefreshTokens, revokeRefreshToken } from "./db/queries/tokens.js";
 const app = express();
 const Middleware = express.json();
@@ -30,6 +30,11 @@ app.post("/api/chirps", handlerValidateChirp);
 app.post("/api/login", handlerLogin);
 app.post("/api/refresh", handlerRefresh);
 app.post("/api/revoke", handlerRevoke);
+app.post("/api/polka/webhooks", handlerPolkaWebhooks);
+// PUT Requests
+app.put("/api/users", handlerUpdateUser);
+// DELETE Requests
+app.delete("/api/chirps/:chirpId", handlerDeleteChirp);
 // Middleware
 app.use(middlewareLogResponses);
 app.use(middlewareErrorHandler);
@@ -109,6 +114,7 @@ async function handlerCreateUser(req, res) {
         email: user.email,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+        isChirpyRed: user.is_chirpy_red,
     });
 }
 async function handlerGetAllChirps(_req, res) {
@@ -149,6 +155,7 @@ async function handlerLogin(req, res) {
         email: user.email,
         token,
         refreshToken,
+        isChirpyRed: user.is_chirpy_red,
     });
 }
 async function handlerRefresh(req, res) {
@@ -164,5 +171,80 @@ async function handlerRevoke(req, res) {
     const refreshToken = getBearerToken(req);
     const now = new Date();
     await revokeRefreshToken(refreshToken, now);
+    res.status(204).send();
+}
+async function handlerUpdateUser(req, res) {
+    const parsed = req.body;
+    if (typeof parsed.email !== "string" || typeof parsed.password !== "string") {
+        throw new BadRequestError("Invalid email or password.");
+    }
+    let token;
+    try {
+        token = getBearerToken(req);
+    }
+    catch (error) {
+        throw new UnauthorizedError("Invalid token.");
+    }
+    const userId = validateJWT(token, config.api.jwtSecret);
+    const passwordHash = await hashPassword(parsed.password);
+    const user = await updateUser(userId, {
+        email: parsed.email,
+        hashed_password: passwordHash,
+    });
+    res.status(200).json({
+        id: user.id,
+        email: user.email,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        isChirpyRed: user.is_chirpy_red,
+    });
+}
+async function handlerDeleteChirp(req, res) {
+    const parsed = req.params;
+    if (typeof parsed.chirpId !== "string") {
+        throw new BadRequestError("Invalid chirp ID.");
+    }
+    let token;
+    try {
+        token = getBearerToken(req);
+    }
+    catch (error) {
+        throw new UnauthorizedError("Invalid token.");
+    }
+    const userId = validateJWT(token, config.api.jwtSecret);
+    const chirp = await getChirpById(parsed.chirpId);
+    if (!chirp) {
+        throw new NotFoundError("Chirp not found.");
+    }
+    if (chirp.userId !== userId) {
+        throw new ForbiddenError("You are not allowed to delete this chirp.");
+    }
+    await deleteChirpById(parsed.chirpId);
+    res.status(204).send();
+}
+async function handlerPolkaWebhooks(req, res) {
+    const parser = req.body;
+    if (parser.event !== "user.upgraded") {
+        res.status(204).send();
+        return;
+    }
+    let apiKey;
+    try {
+        apiKey = getAPIKey(req);
+    }
+    catch (error) {
+        throw new UnauthorizedError("Invalid API key.");
+    }
+    if (apiKey !== config.api.polkaKey) {
+        throw new UnauthorizedError("Invalid API key.");
+    }
+    if (typeof parser.data?.userId !== "string") {
+        throw new BadRequestError("Invalid user ID.");
+    }
+    const user = await getUserById(parser.data.userId);
+    if (!user) {
+        throw new NotFoundError("User not found.");
+    }
+    await updateUserIsChirpyRed(parser.data.userId);
     res.status(204).send();
 }

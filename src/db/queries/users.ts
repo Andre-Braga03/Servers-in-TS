@@ -26,3 +26,28 @@ export async function getUserByEmail(email: string) {
     .where(eq(users.email, email));
   return result;
 }
+
+export async function getUserById(userId: string) {
+  const [result] = await drizzle(config.db.url)
+    .select()
+    .from(users)
+    .where(eq(users.id, userId));
+  return result;
+}
+export async function updateUser(userId: string, user: Partial<typeof users.$inferInsert>) {
+  const [result] = await drizzle(config.db.url)
+    .update(users)
+    .set(user)
+    .where(eq(users.id, userId))
+    .returning();
+  return result;
+}
+
+export async function updateUserIsChirpyRed(userId: string) {
+  const [result] = await drizzle(config.db.url)
+    .update(users)
+    .set({ is_chirpy_red: true })
+    .where(eq(users.id, userId))
+    .returning();
+  return result;
+}

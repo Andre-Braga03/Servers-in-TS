@@ -82,3 +82,14 @@ export function makeRefreshToken(): string {
   return randomBytes(32).toString("hex");
 }
 
+export function getAPIKey(req: Request) {
+  const apiKey = req.get("Authorization");
+  if(!apiKey){
+    throw new BadRequestError("API key is required");
+  }
+  const list = apiKey.split(" ");
+
+  
+  return list[list.length - 1];
+}
+

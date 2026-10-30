@@ -11,6 +11,7 @@ type APIConfig = {
 fileserverHits: number;
 port: number;
 jwtSecret: string;
+polkaKey: string;
 };
 
 type DBConfig = {
@@ -28,6 +29,7 @@ export const config : Config = {
     fileserverHits: 0,
     port: Number(process.env.PORT),
     jwtSecret: process.env.JWT_SECRET ?? "",
+    polkaKey: process.env.POLKA_KEY ?? "",
  },
  db: {
     url: process.env.DB_URL ?? "",
